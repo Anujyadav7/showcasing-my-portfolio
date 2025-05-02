@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from 'react';
 import { ArrowRight } from 'lucide-react';
 import { useToast } from "@/components/ui/use-toast";
@@ -150,19 +149,37 @@ const Index = () => {
 
   const renderVideoContent = () => {
     let content;
+    let titles;
     
     switch (activeVideoTab) {
       case 'reels':
         content = firebaseLinks.instagramReels;
+        titles = [
+          "Creative Video Editing Techniques",
+          "Professional Podcast Setup Guide",
+          "Engaging Social Media Content"
+        ];
         break;
       case 'shorts':
         content = firebaseLinks.youtubeShorts;
+        titles = [
+          "3D Animation Effects Tutorial",
+          "Thumbnail Creation Guide",
+          "Complete Video Editing Workflow",
+          "Content Leverage Strategies"
+        ];
         break;
       case 'product':
         content = firebaseLinks.productSellVideos;
+        titles = [
+          "Figma Plugin Showcase",
+          "AI Relighting Technology Demo",
+          "Stock Market Investment Guide"
+        ];
         break;
       default:
         content = firebaseLinks.instagramReels;
+        titles = ["Video 1", "Video 2", "Video 3"];
     }
     
     return (
@@ -171,8 +188,9 @@ const Index = () => {
           <div key={idx} className="flex justify-center">
             <VideoCard 
               src={src} 
-              title={`${activeVideoTab.charAt(0).toUpperCase() + activeVideoTab.slice(1)} ${idx + 1}`}
-              className="reel-format h-[400px]" 
+              title={titles[idx] || `${activeVideoTab.charAt(0).toUpperCase() + activeVideoTab.slice(1)} ${idx + 1}`}
+              className="reel-format h-full" 
+              thumbnail={`https://images.unsplash.com/photo-${1600000000000 + idx * 1000}-${idx}?auto=format&fit=crop&w=640&q=80`}
             />
           </div>
         ))}
