@@ -1,35 +1,117 @@
-
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Play } from 'lucide-react';
 
 interface VideoCardProps {
   src: string;
   title?: string;
-  thumbnail?: string;
   className?: string;
 }
 
-const VideoCard: React.FC<VideoCardProps> = ({ src, title, thumbnail, className = '' }) => {
+const VideoCard: React.FC<VideoCardProps> = ({ src, title, className = '' }) => {
   const [isPlaying, setIsPlaying] = useState(false);
-  const [videoThumbnail, setVideoThumbnail] = useState<string | null>(thumbnail || null);
+  const [videoThumbnail, setVideoThumbnail] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const videoRef = useRef<HTMLVideoElement>(null);
   
-  // Generate random thumbnail placeholder if no thumbnail is provided
+  // Generate video thumbnail from the first frame with improved handling
   useEffect(() => {
-    if (!thumbnail) {
-      // Use placeholder images from Unsplash
-      const placeholders = [
-        "https://images.unsplash.com/photo-1618160702438-9b02ab6515c9?auto=format&fit=crop&w=640&q=80",
-        "https://images.unsplash.com/photo-1472396961693-142e6e269027?auto=format&fit=crop&w=640&q=80",
-        "https://images.unsplash.com/photo-1582562124811-c09040d0a901?auto=format&fit=crop&w=640&q=80"
-      ];
+    if (!src) return;
+    
+    const video = document.createElement('video');
+    video.crossOrigin = 'anonymous';
+    video.muted = true;
+    video.preload = 'auto'; // Use 'auto' instead of 'metadata' for better loading
+    video.playsInline = true;
+    
+    // Set up event listeners before setting the source
+    const captureFrame = () => {
+      try {
+        // Create canvas and draw the video frame
+        const canvas = document.createElement('canvas');
+        canvas.width = video.videoWidth || 640;
+        canvas.height = video.videoHeight || 360;
+        const ctx = canvas.getContext('2d');
+        
+        if (ctx && video.videoWidth > 0 && video.videoHeight > 0) {
+          ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+          const thumbnailUrl = canvas.toDataURL('image/jpeg', 0.9);
+          if (thumbnailUrl !== 'data:,') {
+            setVideoThumbnail(thumbnailUrl);
+            setIsLoading(false);
+          } else {
+            // If we got an empty data URL, try again with a different time
+            video.currentTime = 1.0; // Try a frame at 1 second
+          }
+        } else {
+          console.warn('Canvas context or video dimensions not available');
+          // Try again with a slight delay
+          setTimeout(() => {
+            if (video.videoWidth > 0) captureFrame();
+          }, 100);
+        }
+      } catch (error) {
+        console.error('Error generating thumbnail:', error);
+        setIsLoading(false);
+      }
+    };
+
+    // Multiple event handlers to ensure we capture a frame
+    video.onloadeddata = () => {
+      video.currentTime = 0.1; // Seek to a small offset to ensure we get an actual frame
+    };
+    
+    video.oncanplay = () => {
+      if (!videoThumbnail) {
+        video.currentTime = 0.1;
+      }
+    };
+    
+    video.onseeked = () => {
+      captureFrame();
       
-      const randomIndex = Math.floor(Math.random() * placeholders.length);
-      setVideoThumbnail(placeholders[randomIndex]);
-    }
-  }, [thumbnail]);
+      // Clean up after successful capture
+      if (videoThumbnail) {
+        video.pause();
+        video.src = '';
+        video.load();
+      }
+    };
+    
+    // Handle errors
+    video.onerror = () => {
+      console.error('Error loading video for thumbnail');
+      setIsLoading(false);
+    };
+    
+    // Set the source after setting up all event handlers
+    video.src = src;
+    video.load();
+    
+    // Fallback if events don't trigger
+    const timeoutId = setTimeout(() => {
+      if (isLoading) {
+        console.log('Fallback: forcing thumbnail capture');
+        if (video.readyState >= 2) { // HAVE_CURRENT_DATA or better
+          captureFrame();
+        } else {
+          setIsLoading(false);
+        }
+      }
+    }, 3000);
+    
+    return () => {
+      clearTimeout(timeoutId);
+      video.pause();
+      video.src = '';
+      video.load();
+    };
+  }, [src]);
 
   const handlePlay = () => {
     setIsPlaying(true);
+    if (videoRef.current) {
+      videoRef.current.play().catch(err => console.error('Error playing video:', err));
+    }
   };
 
   return (
@@ -43,12 +125,16 @@ const VideoCard: React.FC<VideoCardProps> = ({ src, title, thumbnail, className 
             {videoThumbnail ? (
               <img 
                 src={videoThumbnail} 
-                alt={title || "Video thumbnail"} 
+                alt={title || "Video preview"} 
                 className="w-full h-full object-cover opacity-90"
               />
             ) : (
               <div className="w-full h-full bg-black/40 flex items-center justify-center">
-                <span className="text-white/70 text-sm">Video Preview</span>
+                {isLoading ? (
+                  <span className="text-white/70 text-sm">Loading preview...</span>
+                ) : (
+                  <span className="text-white/70 text-sm">Video Preview</span>
+                )}
               </div>
             )}
             <div className="absolute inset-0 flex items-center justify-center hover:bg-black/40 transition-colors">
@@ -65,6 +151,7 @@ const VideoCard: React.FC<VideoCardProps> = ({ src, title, thumbnail, className 
         </div>
       ) : (
         <video 
+          ref={videoRef}
           src={src}
           className="w-full h-full object-cover aspect-[9/16] max-h-[500px]"
           controls
